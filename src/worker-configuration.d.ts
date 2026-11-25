@@ -6,7 +6,7 @@ declare namespace Cloudflare {
 		mainModule: typeof import("./index");
 	}
 	interface Env {
-		TOKEN: string;
+		TOKEN?: string;
 	}
 }
 interface CloudflareBindings extends Cloudflare.Env {}

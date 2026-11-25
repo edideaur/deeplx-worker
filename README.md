@@ -1,34 +1,19 @@
-[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Atticus6/deeplx-worker)
-
-# deeplx-worker
+# translate-worker
 
 [中文文档](./README.zh-CN.md)
 
-A lightweight translation service deployed on Cloudflare Workers. After deployment, you can call a single HTTP API to translate text with DeepL's anonymous oneshot endpoint.
+A lightweight translation service deployed on Cloudflare Workers. After deployment, you can call a single HTTP API to translate text.
 
 ## What It Does
 
 - Single translation endpoint: `POST /hi/translate`
 - Supports automatic source language detection with `sourceLang = auto`
-- Returns the translated text, source/target language and method. `alternatives` is kept for DeepLX compatibility and is always an empty array.
+- Returns the translated text, source/target language and method. `alternatives` is kept for compatibility and is always an empty array.
 
 ## API Endpoint
 
 - Home page: `/`
 - Translation API: `/hi/translate`
-
-## Public API
-
-After deployment, the only public endpoint is:
-
-```http
-POST https://<your-worker-domain>/hi/translate
-Content-Type: application/json
-```
-
-It accepts the JSON body documented below and returns the DeepLX-compatible
-response. If the `TOKEN` binding is not configured, the endpoint is anonymous;
-if it is configured, send `Authorization: Bearer <TOKEN>`.
 
 ## Quick Start
 
@@ -38,18 +23,29 @@ Install dependencies:
 npm install
 ```
 
-Install Wrangler and log in to Cloudflare:
+Configure the token for local development:
+
+```bash
+cp .env.example .env   # then edit TOKEN
+npm run dev
+```
+
+Install Wrangler, log in to Cloudflare and deploy:
 
 ```bash
 npm install -g wrangler
 wrangler login
-```
-
-Deploy the Worker:
-
-```bash
+wrangler secret put TOKEN
 npm run deploy
 ```
+
+## Authentication
+
+Every request must send `Authorization: Bearer <TOKEN>`; otherwise the API returns `401 Unauthorized`.
+
+- Locally, `TOKEN` is read from `.env` (Wrangler loads it for `wrangler dev`)
+- In production, set it as a Worker secret with `wrangler secret put TOKEN`
+- If `TOKEN` is not set, the server falls back to the default token `didylate`. Set your own token before exposing the Worker publicly.
 
 ## Request
 
@@ -59,12 +55,6 @@ Headers:
 Content-Type: application/json
 Authorization: Bearer <TOKEN>
 ```
-
-Authentication:
-
-- `bearerAuth1` is the bearer-token auth middleware used by `src/index.ts`
-- Send `Authorization: Bearer <TOKEN>` when `TOKEN` is configured in the Worker environment
-- If `TOKEN` is not configured, `bearerAuth1` allows requests without authentication
 
 Body:
 
@@ -80,7 +70,7 @@ Fields:
 
 - `sourceLang`: source language such as `EN`, `ZH`, `JA`, `KO`, or `auto`
 - `targetLang`: target language such as `EN`, `ZH` (it cannot be `auto`)
-- `text`: the text you want to translate (about 1500 characters max on the anonymous endpoint)
+- `text`: the text you want to translate (about 1500 characters max)
 
 ## Response
 
@@ -120,35 +110,12 @@ curl -X POST https://your-worker-domain/hi/translate \
   }'
 ```
 
-## Public Instance
-
-If you do not want to deploy your own Worker, the author's site exposes a compatible endpoint:
-
-```bash
-curl -X POST https://www.wonglt.com/api/translate \
-  -H "Content-Type: application/json" \
-  -d '{
-    "sourceLang": "auto",
-    "targetLang": "ZH",
-    "text": "Hello world"
-  }'
-```
-
-It accepts the same `sourceLang` / `targetLang` / `text` body and returns the same response shape. It is anonymous, CORS enabled, limited to 60 requests/minute/IP and about 1500 characters per request.
-
-## Article
-
-- [deeplx-worker: Deploying a free translation API on Cloudflare Workers](https://www.wonglt.com/en/articles/deeplx-worker-cloudflare-translate-api)
-- [中文版](https://www.wonglt.com/zh/articles/deeplx-worker-cloudflare-translate-api)
-
 ## Notes
 
-- The public API is `POST /hi/translate`
-- `bearerAuth1` checks the `Authorization: Bearer <TOKEN>` header when `TOKEN` is configured
-- `sourceLang=auto` omits `source_lang` and lets DeepL detect the language
-- `alternatives` is always `[]`: the oneshot endpoint does not return alternative translations
-- Frequent requests may trigger rate limiting or temporary blocking from DeepL
-- The upstream is DeepL's anonymous oneshot endpoint (`https://oneshot-free.www.deepl.com/v1/translate`). The old `www2.deepl.com/jsonrpc` + `LMT_handle_texts` path now returns an "update DeepL" notice instead of a translation, so `src/deeplx.ts` no longer uses it. Upstream changes only need edits in that file
+- `sourceLang=auto` lets the upstream service detect the language
+- `alternatives` is always `[]`
+- Frequent requests may trigger rate limiting or temporary blocking upstream
+- Upstream is DeepL's anonymous oneshot endpoint (`https://oneshot-free.www.deepl.com/v1/translate`); changes only need edits in `src/deeplx.ts`. Client-facing responses and pages are kept free of DeepL branding
 
 ## License
 

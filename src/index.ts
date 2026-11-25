@@ -6,22 +6,18 @@ import { zValidator } from "./zod-validator";
 
 type Env = { Bindings: Cloudflare.Env };
 
+/** Used when no `TOKEN` is set in `.env` / Worker secrets. */
+const DEFAULT_TOKEN = "didylate";
+
 const app = new Hono<Env>().basePath("/hi");
 
 /**
- * Optional bearer auth.
- *
- * - `TOKEN` configured: require `Authorization: Bearer <TOKEN>`.
- * - `TOKEN` absent: let anonymous requests through. The previous `bearerAuth`
- *   middleware still demanded a header even when the token was not configured,
- *   which made the "anonymous when no TOKEN" behavior in the README untrue.
+ * Bearer auth. Always enforced: requires `Authorization: Bearer <TOKEN>`,
+ * where `TOKEN` comes from the environment (`.env` locally, a Worker secret
+ * in production) and falls back to `DEFAULT_TOKEN`.
  */
-const bearerAuth1 = createMiddleware<Env>(async (c, next) => {
-  const token = c.env.TOKEN;
-  if (!token) {
-    await next();
-    return;
-  }
+const bearerAuth = createMiddleware<Env>(async (c, next) => {
+  const token = c.env.TOKEN || DEFAULT_TOKEN;
 
   if (c.req.header("Authorization") !== `Bearer ${token}`) {
     return c.text("Unauthorized", 401);
@@ -32,6 +28,7 @@ const bearerAuth1 = createMiddleware<Env>(async (c, next) => {
 
 app.post(
   "/translate",
+  bearerAuth,
   zValidator(
     "json",
     z.object({
@@ -40,8 +37,6 @@ app.post(
       text: z.string().min(1),
     }),
   ),
-  bearerAuth1,
-
   async (c) => {
     const data = c.req.valid("json");
     const res = await deepLXTranslator.translate(data);

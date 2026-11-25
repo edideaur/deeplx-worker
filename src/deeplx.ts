@@ -126,17 +126,21 @@ export class DeepLXTranslator {
         signal: AbortSignal.timeout(DeepLXTranslator.TIMEOUT_MS),
       });
     } catch (err) {
+      // Log the real error server-side; don't leak upstream details (e.g. the
+      // DeepL hostname) to clients.
+      console.error("upstream request failed", err);
       return {
         code: 503,
-        message: err instanceof Error ? err.message : String(err),
+        message: "Translation service unavailable",
       };
     }
 
+    // Client-facing messages stay unbranded.
     if (response.status === 429) {
       return {
         code: 503,
         message:
-          "too many requests, your IP has been blocked by DeepL temporarily, please don't request it frequently in a short time",
+          "too many requests, your IP has been temporarily rate limited, please don't request it frequently in a short time",
       };
     }
 
